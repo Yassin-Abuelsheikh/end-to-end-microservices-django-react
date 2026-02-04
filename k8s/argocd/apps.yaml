@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/USERNAME/django_react_project_k8s
+    repoURL: https://github.com/NTI-Django-React-Project/k8s-manifests
     targetRevision: main
     path: argocd
   destination:
