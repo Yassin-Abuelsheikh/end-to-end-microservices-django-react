@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: memcached
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/NTI-Django-React-Project/k8s-manifests
+    targetRevision: main
+    path: memcached
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: memcached
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+

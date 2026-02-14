@@ -1,0 +1,261 @@
+pipeline {
+  agent any
+
+  tools {
+    nodejs 'NodeJS-18'
+    
+  }
+
+  environment {
+    RAW_NEXUS_REPO = 'http://51.20.143.84:8081/repository/frontend-artifacts/'
+    DOCKER_IMAGE  = 'mazenmostafa429/frontend'
+    FRONTEND_DIR  = 'frontend'
+  }
+
+  stages {
+
+    stage('Checkout Code') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh 'npm install'
+        }
+      }
+    }
+
+    stage('Build') {
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh 'npm run build'
+        }
+      }
+    }
+
+    // stage('Test & Coverage') {
+    //   steps {
+    //     dir("${FRONTEND_DIR}") {
+    //       catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+    //         sh 'npm test -- --coverage --watchAll=false'
+    //       }
+    //     }
+    //   }
+    //   post {
+    //     always {
+    //       archiveArtifacts artifacts: "${FRONTEND_DIR}/coverage/**", fingerprint: true
+    //       publishHTML(target: [
+    //         reportDir: "${FRONTEND_DIR}/coverage",
+    //         reportFiles: 'index.html',
+    //         reportName: 'Coverage Report'
+    //       ])
+    //     }
+    //   }
+    // }
+
+    stage('SonarQube Analysis') {
+      steps {
+        dir("${FRONTEND_DIR}") {
+          withSonarQubeEnv('sonarqube') {
+            sh '''
+              sonar-scanner \
+                -Dsonar.projectKey=frontend-react \
+                -Dsonar.sources=src \
+                -Dsonar.tests=src \
+                -Dsonar.test.inclusions=**/*.test.js,**/*.spec.js \
+                -Dsonar.exclusions=**/node_modules/**,**/build/** \
+                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 5, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
+      }
+    }
+
+    stage('OWASP Dependency Check') {
+      environment {
+        NVD_API_KEY = credentials('NVD_API_KEY')
+      }
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh '''
+            mkdir -p owasp-report
+
+            docker run --rm \
+              -v $(pwd):/src \
+              -v owasp-data:/usr/share/dependency-check/data \
+              owasp/dependency-check:latest \
+              --scan /src \
+              --format XML \
+              --out /src/owasp-report \
+              --nvdApiKey $NVD_API_KEY
+          '''
+        }
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: "${FRONTEND_DIR}/owasp-report/**", fingerprint: true
+        }
+      }
+    }
+
+    stage('Upload Artifact to Nexus (Raw)') {
+      environment {
+        NEXUS_CREDS = credentials('nexus-cred')
+      }
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh '''
+            tar -czf frontend-build-${BUILD_NUMBER}.tar.gz build
+
+            curl -u $NEXUS_CREDS_USR:$NEXUS_CREDS_PSW \
+              --upload-file frontend-build-${BUILD_NUMBER}.tar.gz \
+              ${RAW_NEXUS_REPO}frontend-build-${BUILD_NUMBER}.tar.gz
+          '''
+        }
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: "${FRONTEND_DIR}/frontend-build-*.tar.gz", fingerprint: true
+        }
+      }
+    }
+
+    stage('Build & Push with Kaniko') {
+      environment {
+        DOCKER_CREDS = credentials('docker-cred')
+      }
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh '''
+            echo "🔧 Logging in to Docker Hub..."
+            echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin
+            
+            echo "🔧 Preparing Kaniko configuration..."
+            mkdir -p /tmp/kaniko-${BUILD_NUMBER}/.docker
+            cp ~/.docker/config.json /tmp/kaniko-${BUILD_NUMBER}/.docker/config.json
+            
+            echo "🐳 Building and pushing Docker image with Kaniko..."
+            docker run --rm \
+              -v $(pwd):/workspace \
+              -v /tmp/kaniko-${BUILD_NUMBER}/.docker:/kaniko/.docker \
+              gcr.io/kaniko-project/executor:latest \
+              --dockerfile=/workspace/Frontend-Dockerfile \
+              --context=dir:///workspace \
+              --destination=${DOCKER_IMAGE}:${BUILD_NUMBER} \
+              --destination=${DOCKER_IMAGE}:latest \
+              --cache=true \
+              --verbosity=info
+
+            echo "✅ Image pushed successfully to Docker Hub!"
+          '''
+        }
+      }
+      post {
+        always {
+          sh '''
+            rm -rf /tmp/kaniko-${BUILD_NUMBER} || true
+            docker logout || true
+          '''
+        }
+      }
+    }
+
+    stage('Trivy Image Scan') {
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh '''
+            echo "🔒 Running Trivy security scan on Docker image..."
+            mkdir -p trivy-reports
+            
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v $(pwd)/trivy-reports:/reports \
+              aquasec/trivy image \
+              --format json \
+              --output /reports/trivy-image-report-${BUILD_NUMBER}.json \
+              ${DOCKER_IMAGE}:${BUILD_NUMBER}
+            
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v $(pwd)/trivy-reports:/reports \
+              aquasec/trivy image \
+              --format template \
+              --template "@contrib/html.tpl" \
+              --output /reports/trivy-image-report-${BUILD_NUMBER}.html \
+              ${DOCKER_IMAGE}:${BUILD_NUMBER}
+            
+            echo "✅ Trivy image scan completed!"
+          '''
+        }
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: "${FRONTEND_DIR}/trivy-reports/**", fingerprint: true
+          publishHTML(target: [
+            reportDir: "${FRONTEND_DIR}/trivy-reports",
+            reportFiles: "trivy-image-report-${BUILD_NUMBER}.html",
+            reportName: 'Trivy Image Security Report'
+          ])
+        }
+      }
+    }
+
+    stage('Trivy FS Scan') {
+      steps {
+        dir("${FRONTEND_DIR}") {
+          sh '''
+            echo "🔍 Running Trivy filesystem scan..."
+            docker run --rm -v $(pwd):/project aquasec/trivy fs /project || true
+          '''
+        }
+      }
+    }
+
+  } // end of stages
+
+  post {
+    success {
+      echo '✅ Pipeline completed successfully'
+      // Webhook notification to n8n on success
+      sh """
+        curl -X POST http://174.129.167.238:5678/webhook/jenkins-notify \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status": "SUCCESS",
+          "job": "${JOB_NAME}",
+          "build": "${BUILD_NUMBER}",
+          "image": "${DOCKER_IMAGE}",
+          "tag": "${BUILD_NUMBER}",
+          "url": "${BUILD_URL}"
+        }'
+      """
+    }
+    failure {
+      echo '❌ Pipeline failed'
+      // Webhook notification to n8n on failure
+      sh """
+        curl -X POST http://174.129.167.238:5678/webhook/jenkins-notify \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status": "FAILED",
+          "job": "${JOB_NAME}",
+          "build": "${BUILD_NUMBER}",
+          "image": "${DOCKER_IMAGE}",
+          "tag": "${BUILD_NUMBER}",
+          "url": "${BUILD_URL}"
+        }'
+      """
+    }
+  }
+}

@@ -1,0 +1,309 @@
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: kube-prometheus-stack
+#   namespace: argocd
+#   finalizers:
+#     - resources-finalizer.argocd.argoproj.io
+# spec:
+#   project: default
+  
+#   source:
+#     repoURL: https://prometheus-community.github.io/helm-charts
+#     chart: kube-prometheus-stack
+#     targetRevision: 58.5.0
+    
+#     helm:
+#       skipCrds: false
+      
+#       values: |
+#         # ========================================
+#         # Prometheus Configuration
+#         # ========================================
+#         prometheus:
+#           enabled: true
+          
+#           prometheusSpec:
+#             replicas: 1
+            
+#             # 🔥 Retention Settings (الحل للـ OOMKilled!)
+#             retention: 2h
+#             retentionSize: 500MB
+            
+#             # Resources محسّنة للـ EC2 8GB
+#             resources:
+#               requests:
+#                 memory: 1536Mi
+#                 cpu: 200m
+#               limits:
+#                 memory: 3Gi
+#                 cpu: 1000m
+            
+#             # Storage
+#             storageSpec: {}
+            
+#             # Performance
+#             walCompression: true
+#             scrapeInterval: 60s
+#             evaluationInterval: 60s
+            
+#             # Selectors
+#             serviceMonitorSelectorNilUsesHelmValues: false
+#             podMonitorSelectorNilUsesHelmValues: false
+#             ruleSelectorNilUsesHelmValues: false
+        
+#         # اقفل الـ monitors المش ضرورية
+#         kubeApiServer:
+#           enabled: false
+#         kubeControllerManager:
+#           enabled: false
+#         kubeScheduler:
+#           enabled: false
+#         kubeProxy:
+#           enabled: false
+#         kubeEtcd:
+#           enabled: false
+        
+#         alertmanager:
+#           enabled: true
+#           alertmanagerSpec:
+#             resources:
+#               requests:
+#                 memory: 64Mi
+#                 cpu: 25m
+#               limits:
+#                 memory: 128Mi
+#                 cpu: 50m
+        
+#         # ========================================
+#         # Grafana Configuration (الإعدادات بتاعتك!)
+#         # ========================================
+#         grafana:
+#           enabled: true
+          
+#           # ✅ Admin credentials من Secret
+#           admin:
+#             existingSecret: grafana-admin-secret
+#             userKey: admin-user
+#             passwordKey: admin-password
+          
+#           # ✅ Resources (قللناهم شوية عشان EC2 8GB)
+#           resources:
+#             requests:
+#               memory: 128Mi
+#               cpu: 50m          # قللناه من 100m
+#             limits:
+#               memory: 256Mi
+#               cpu: 200m         # قللناه من 250m
+          
+#           # ✅ Persistence (مهم للـ dashboards!)
+#           persistence:
+#             enabled: true
+#             size: 5Gi
+          
+#           # ✅ Ingress (ALB على AWS)
+#           ingress:
+#             enabled: true
+#             ingressClassName: alb
+#             annotations:
+#               alb.ingress.kubernetes.io/scheme: internet-facing
+#               alb.ingress.kubernetes.io/target-type: ip
+#               alb.ingress.kubernetes.io/group.name: shared-alb
+#               alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+#               alb.ingress.kubernetes.io/ssl-redirect: '443'
+#               alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-north-1:231056963705:certificate/5e76be6b-fbf8-474d-a62d-9e746ca23b19
+#             hosts:
+#               - grafana.yassinabuelsheikh.store
+#             path: /
+#             pathType: Prefix
+          
+#           # ✅ Default dashboards
+#           defaultDashboardsEnabled: true
+  
+#         # ========================================
+#         # اقفل الـ Components المش ضرورية
+#         # ========================================
+#         kubeApiServer:
+#           enabled: false
+        
+#         kubeControllerManager:
+#           enabled: false
+        
+#         kubeScheduler:
+#           enabled: false
+        
+#         kubeProxy:
+#           enabled: false
+        
+#         kubeEtcd:
+#           enabled: false
+        
+#         # ========================================
+#         # الـ Components الأساسية
+#         # ========================================
+#         kubelet:
+#           enabled: true
+#           serviceMonitor:
+#             interval: 60s
+        
+#         kubeStateMetrics:
+#           enabled: true
+        
+#         nodeExporter:
+#           enabled: true
+        
+#         # ========================================
+#         # Alertmanager
+#         # ========================================
+#         alertmanager:
+#           enabled: true
+          
+#           alertmanagerSpec:
+#             replicas: 1
+#             resources:
+#               requests:
+#                 memory: 64Mi
+#                 cpu: 25m
+#               limits:
+#                 memory: 128Mi
+#                 cpu: 50m
+        
+#         # ========================================
+#         # Prometheus Operator
+#         # ========================================
+#         prometheusOperator:
+#           resources:
+#             requests:
+#               memory: 128Mi
+#               cpu: 50m
+#             limits:
+#               memory: 256Mi
+#               cpu: 100m
+  
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: monitoring
+  
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+    
+#     syncOptions:
+#       - CreateNamespace=true
+#       - ServerSideApply=true
+    
+#     retry:
+#       limit: 5
+#       backoff:
+#         duration: 10s
+#         factor: 2
+#         maxDuration: 3m
+# # apiVersion: argoproj.io/v1alpha1
+# # kind: Application
+# # metadata:
+# #   name: prometheus-crds
+# #   namespace: argocd
+# #   finalizers:
+# #     - resources-finalizer.argocd.argoproj.io
+# #   annotations:
+# #     argocd.argoproj.io/sync-wave: "1"  # قبل monitoring
+# # spec:
+# #   project: default
+# #   source:
+# #     repoURL: https://prometheus-community.github.io/helm-charts
+# #     chart: kube-prometheus-stack
+# #     targetRevision: 58.5.0
+# #     helm:
+# #       skipCrds: false
+# #       parameters:
+# #         - name: prometheus.enabled
+# #           value: "false"  # ⬅️ اقفل كل حاجة ما عدا CRDs
+# #         - name: alertmanager.enabled
+# #           value: "false"
+# #         - name: grafana.enabled
+# #           value: "false"
+# #         - name: prometheusOperator.enabled
+# #           value: "false"
+# #         - name: kubeStateMetrics.enabled
+# #           value: "false"
+# #         - name: nodeExporter.enabled
+# #           value: "false"
+# #   destination:
+# #     server: https://kubernetes.default.svc
+# #     namespace: monitoring
+# #   syncPolicy:
+# #     automated:
+# #       prune: false  # ⬅️ للـ CRDs خليه false
+# #       selfHeal: false
+# #     syncOptions:
+# #       - CreateNamespace=true
+# #       - ServerSideApply=true
+#   #   helm:
+#   #     skipCrds: false  # ⬅️ مهم جداً!
+#   #     parameters:
+#   #       - name: crds.enabled
+#   #         value: "true"
+#   # destination:
+#   #   server: https://kubernetes.default.svc
+#   #   namespace: monitoring
+#   # syncPolicy:
+#   #   automated:
+#   #     prune: false  # ⬅️ ميمسحش الـ CRDs!
+#   #     selfHeal: true
+#   #   syncOptions:
+#   #     - CreateNamespace=true
+#   #     - ServerSideApply=true
+#   #     - Replace=true
+#   #   retry:
+#   #     limit: 5
+#   #     backoff:
+#   #       duration: 10s
+#   #       factor: 2
+#   #       maxDuration: 3m
+
+
+
+# # ------------------
+# # apiVersion: argoproj.io/v1alpha1
+# # kind: Application
+# # metadata:
+# #   name: prometheus-crds
+# #   namespace: argocd
+# #   # يفضل إضافة finalizer في الإنتاج للحماية
+# #   finalizers:
+# #     - resources-finalizer.argocd.argoproj.io
+# #   annotations:
+# #     argocd.argoproj.io/sync-wave: "1"  
+# # spec:
+# #   project: default
+# #   source:
+# #     repoURL: https://github.com/prometheus-operator/prometheus-operator.git
+# #     # استخدم tag محدد (مستقر) بدل main في الإنتاج
+# #     targetRevision: v0.75.2   # مثال - غيّره لإصدار مستقر يتوافق مع الـ chart
+# #     path: example/prometheus-operator-crd
+# #   destination:
+# #     server: https://kubernetes.default.svc
+# #     namespace: monitoring
+# #   syncPolicy:
+# #     automated:
+# #       prune: true
+# #       selfHeal: true
+# #     syncOptions:
+# #       - CreateNamespace=true           # لو الـ namespace مش موجود
+# #       - ServerSideApply=true           # مهم جدًا للـ CRDs
+# #       - ApplyOutOfSyncOnly=true
+# #       - RespectIgnoreDifferences=true
+# #     # retry مهم في الإنتاج عشان يتعامل مع مشاكل الشبكة
+# #     retry:
+# #       limit: 5
+# #       backoff:
+# #         duration: 10s
+# #         factor: 2
+
+# #         maxDuration: 3m
+
+
+
+
+

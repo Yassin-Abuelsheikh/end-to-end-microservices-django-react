@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-migrate
+  namespace: backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: backend-sa  
+      containers:
+        - name: migrate
+          image: mohamedessam122002/backend-app:v5
+          command: ["python", "manage.py", "migrate"]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_HOST
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_USER
+            # - name: DB_SECRET_ARN
+            #   value: arn:aws:secretsmanager:eu-north-1:231056963705:secret:rds!db-9a832a5c-a53e-4f0b-b0c1-29458543bd76-Yj2RQw
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rds-db-secret
+                  key: DB_PASSWORD
+

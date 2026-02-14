@@ -1,0 +1,184 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jenkins-notify",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -400,
+        -16
+      ],
+      "id": "bdb24c90-f5d7-41e0-9167-cda7b8f155f9",
+      "name": "Webhook",
+      "webhookId": "94edc87a-0a98-46c0-9e12-751a94f6a974"
+    },
+    {
+      "parameters": {
+        "sendTo": "tarekismael543@gmail.com",
+        "subject": "=[{{ $json.failureType }}] {{ $json.jobName }} #{{ $json.buildNumber }} - {{ $json.status }}",
+        "message": "=<h2 style=\"color: {{ $json.status === 'SUCCESS' ? 'green' : 'red' }};\">\n  {{ $json.failureType === 'SUCCESS' ? 'Build & Security Checks Succeeded' : \n     $json.failureType === 'BUILD_FAILED' ? 'Build Failed' : \n     'Security Issue Detected' }}\n</h2>\n\n<p><strong>Job:</strong> {{ $json.jobName }}</p>\n<p><strong>Build:</strong> #{{ $json.buildNumber }}</p>\n<p><strong>Status:</strong> {{ $json.status }}</p>\n<p><strong>Failure Type:</strong> {{ $json.failureType }}</p>\n<p><strong>Build URL:</strong> <a href=\"{{ $json.buildUrl }}\">{{ $json.buildUrl }}</a></p>\n<p><strong>Time:</strong> {{ $json.timestamp }}</p>\n\n<!-- Trivy -->\n{{ $json.trivyCritical > 0 ? \n  '<p style=\"color: red;\">Trivy found ' + $json.trivyCritical + ' critical vulnerabilities</p>' : '' }}\n\n<!-- OWASP Dependency-Check -->\n{{ $json.owaspCritical > 0 ? \n  '<p style=\"color: red; font-weight: bold;\">OWASP Dependency-Check found ' + $json.owaspCritical + ' critical vulnerabilities</p>' : '' }}\n\n{{ $json.owaspHigh > 0 ? \n  '<p style=\"color: orange; font-weight: bold;\">OWASP Dependency-Check found ' + $json.owaspHigh + ' high severity vulnerabilities</p>' : '' }}\n\n{{ $json.owaspMedium > 0 ? \n  '<p style=\"color: #FFA500;\">OWASP Dependency-Check found ' + $json.owaspMedium + ' medium severity vulnerabilities</p>' : '' }}\n\n{{ $json.owaspSummary !== 'No OWASP Dependency-Check results' ? \n  '<p><strong>OWASP Summary:</strong> ' + $json.owaspSummary + '</p>' : '' }}\n\n<!-- SonarQube & others -->\n{{ $json.sonarIssues !== 'None' ? \n  '<p style=\"color: purple;\">SonarQube issues: ' + $json.sonarIssues + '</p>' : '' }}\n\n{{ $json.scanSummary !== 'No scan details' ? \n  '<p><strong>Scan Summary:</strong> ' + $json.scanSummary + '</p>' : '' }}\n\n<hr>\n<p style=\"color: #666; font-size: 12px;\">Sent automatically from n8n</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        -16
+      ],
+      "id": "bfa5a32a-5130-4695-9a90-aa8f221d2497",
+      "name": "Send a message",
+      "webhookId": "60f17f68-78fe-4f25-911c-a58adeb0941c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zCgkPtfcNyqzaGFg",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "34cadeee-b9ed-456a-824a-118dd82dbe7d",
+              "name": "status",
+              "value": "={{ $json.body.status ?? 'UNKNOWN' }}",
+              "type": "string"
+            },
+            {
+              "id": "f91848ad-b8bd-4f36-80ea-bf6e031dbc5e",
+              "name": "jobName",
+              "value": "={{ $json.body.jobName ?? $json.body.fullDisplayName ?? $json.body.name ?? 'غير معروف' }}",
+              "type": "string"
+            },
+            {
+              "id": "92778b2e-f685-456d-abc8-1ae30461e52b",
+              "name": "buildNumber",
+              "value": "={{ $json.body.buildNumber ?? $json.body.number ?? 'غير معروف' }}",
+              "type": "string"
+            },
+            {
+              "id": "bc7e0400-4847-4098-83e6-8fcdb9306804",
+              "name": "buildUrl",
+              "value": "={{ $json.body.buildUrl ?? $json.body.url ?? 'لا يوجد رابط' }}",
+              "type": "string"
+            },
+            {
+              "id": "ad5e884d-6517-43bb-917c-9d2e88c3d450",
+              "name": "timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "83f6bba3-a1f6-4a2a-acc1-fc04d9c481e3",
+              "name": "trivyCritical",
+              "value": "={{ $json.trivyCritical ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "7cec9932-fc6c-4a77-b0f5-ed915ca49f7e",
+              "name": "dependencyHigh",
+              "value": "={{ $json.dependencyHigh ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "cbe8087b-18c4-46c3-a48a-0fa9e6a859e2",
+              "name": "sonarIssues",
+              "value": "={{ $json.sonarIssues ?? 'None' }}",
+              "type": "string"
+            },
+            {
+              "id": "34c5f6a6-cd8e-45c6-b3af-b27cf12b3821",
+              "name": "owaspHigh",
+              "value": "={{ $json.owaspHigh ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "1539063a-4d23-41e1-b1e0-af38b3305a5e",
+              "name": "owaspMedium",
+              "value": "={{ $json.owaspMedium ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "768b93e4-f9e9-421b-8333-701c74084b72",
+              "name": "owaspCritical",
+              "value": "={{ $json.owaspCritical ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "4e329665-9a10-4fdf-9f94-3e8b15989c9f",
+              "name": "owaspSummary",
+              "value": "={{ $json.owaspSummary ?? 'No OWASP Dependency-Check results' }}",
+              "type": "string"
+            },
+            {
+              "id": "a0641837-2ba1-40bf-9ac8-e57702565db4",
+              "name": "failureType",
+              "value": "{{ $json.status === 'FAILURE' ? 'BUILD_FAILED' : ($json.trivyFailed || $json.dependencyCheckFailed || $json.sonarFailed || $json.owaspHigh > 0 || $json.owaspCritical > 0) ? 'SECURITY_ISSUE' : 'SUCCESS' }}"
+              "type": "string"
+            },
+            {
+              "id": "722a88c4-3464-40cd-b1ad-2c4d612f059e",
+              "name": "scanSummary",
+              "value": "={{ $json.scanSummary ?? 'No scan details' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -192,
+        -16
+      ],
+      "id": "c595d7e8-5921-4f04-9e2f-6e9a6e9196d6",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d81173b1-56e1-4770-9bd8-cdcd34fd549e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0180ae09ec7355aca09625cce1fae2f0517e4fdb38e2e627d0cc8a3611e00ee1"
+  },
+  "id": "SFbX7s9fBxVz9Iboo90AI",
+  "tags": []
+}

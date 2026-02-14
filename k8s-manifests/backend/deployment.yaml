@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: backend
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      serviceAccountName: backend-sa 
+      containers:
+        - name: backend
+          # التعديل هنا بناءً على الـ JSON اللي بعته (جوه الـ body)
+          image: 231056963705.dkr.ecr.eu-north-1.amazonaws.com/gig-route-backend:40-98e8383
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_HOST
+
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_NAME
+            
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: DB_USER
+                  
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rds-db-secret
+                  key: DB_PASSWORD
+            
+            - name: ALLOWED_HOSTS
+              value: "yassinabuelsheikh.store,.yassinabuelsheikh.store,backend,backend.backend,backend.backend.svc,localhost,127.0.0.1"
+           
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rds-config
+                  key: REDIS_URL
+
+            # Optional / reference environment variables
+            # - name: REDIS_HOST
+            #   value: redis
+            # - name: REDIS_PORT
+            #   value: "6379"
+            # - name: DB_SECRET_ARN
+            #   value: arn:aws:secretsmanager:eu-north-1:231056963705:secret:rds!db-2b8beca6-8393-45bc-901d-1ca9de0c8346-s7O2fT

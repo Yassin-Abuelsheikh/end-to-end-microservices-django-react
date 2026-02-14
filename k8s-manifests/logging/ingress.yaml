@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-ingress
+  namespace: monitoring
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-north-1:231056963705:certificate/5e76be6b-fbf8-474d-a62d-9e746ca23b19
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/success-codes: "200,302"
+    alb.ingress.kubernetes.io/group.name: shared-alb
+spec:
+  ingressClassName: alb
+  rules:
+  - host: grafana.yassinabuelsheikh.store
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: monitoring-grafana
+              port:
+                number: 80
+
+  - host: kibana.yassinabuelsheikh.store
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: kibana
+              port:
+                number: 5601
+
+  - host: prometheus.yassinabuelsheikh.store
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: monitoring-kube-prometheus-prometheus
+              port:
+                number: 9090

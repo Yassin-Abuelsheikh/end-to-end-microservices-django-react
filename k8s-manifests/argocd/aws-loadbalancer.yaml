@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    targetRevision: 3.0.0
+    helm:
+      parameters:
+        - name: clusterName
+          value: gig-route-cluster
+        - name: region
+          value: eu-north-1
+        - name: vpcId
+          value: vpc-04bfe886a3143adb7
+        - name: serviceAccount.create
+          value: "false"
+        - name: serviceAccount.name
+          value: aws-load-balancer-controller
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
